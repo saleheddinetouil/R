@@ -7,35 +7,65 @@ on:
 
 jobs:
   setup-server:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      - name: Build Docker Image
-        uses: docker/build-push-action@v3
+      - name: Install ngrok
+        uses: actions/download-artifact@v3
         with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: ${{ runner.os }}-ngrok-server
-      - name: Run Server Setup Container
-        uses: docker/run-action@v2
+          name: ngrok
+          path: ngrok.zip
+      - name: Unzip ngrok
+        run: |
+          Expand-Archive ngrok.zip
+      - name: Configure ngrok
+        run: |
+          .\ngrok\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+      - name: Set Server Comment
+        run: net config server /srvcomment:"Windows Server 2016 by @Davitt"
+      - name: Disable Auto Tray
+        run: REG ADD "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" /V EnableAutoTray /T REG_DWORD /D 0 /F
+      - name: Set Wallpaper
+        run: REG ADD "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /f /v Wallpaper /t REG_SZ /d "C:\Windows\System32\rundll32.exe user32.dll,UpdatePerUserSystemParameters C:\Users\runneradmin\Desktop\wallpaper.jpg"
+      - name: Create Administrator User
+        run: |
+          net user administrator ${{ secrets.ADMIN_PASSWORD }} /add
+          net localgroup administrators administrator /add
+          net user administrator /active:yes
+      - name: Delete Installer User
+        run: net user installer /delete
+      - name: Enable Disk Performance Monitoring
+        run: diskperf -Y
+      - name: Start Audio Service
+        run: |
+          sc config Audiosrv start= auto
+          sc start audiosrv
+      - name: Grant Admin Permissions
+        run: |
+          ICACLS C:\Windows\Temp /grant administrator:F
+          ICACLS C:\Windows\installer /grant administrator:F
+      - name: Start ngrok Tunnel
+        run: |
+          .\ngrok\ngrok.exe tcp --region ap 3389
+      - name: Get Public Tunnel URL
+        run: |
+          .\ngrok\ngrok.exe status > tunnel.txt
+          for /F "tokens=3 delims= " %%a in ('type tunnel.txt ^| findstr "Forwarding"') do (
+            set TUNNEL_URL=%%a
+          )
+          echo Public Tunnel URL: !TUNNEL_URL!
+      - name: Output Server Information
+        run: |
+          echo Server successfully configured!
+          echo.
+          echo IP: %COMPUTERNAME%
+          echo Username: administrator
+          echo Password: ${{ secrets.ADMIN_PASSWORD }}
+          echo.
+          echo Please log in to your RDP using the tunnel URL: !TUNNEL_URL!
+      - name: Upload ngrok to Artifact
+        uses: actions/upload-artifact@v3
         with:
-          image: ${{ runner.os }}-ngrok-server
-          command: |
-            .\ngrok\ngrok.exe authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
-            .\ngrok\ngrok.exe tcp --region ap 3389
-            .\ngrok\ngrok.exe status > tunnel.txt
-            for /F "tokens=3 delims= " %%a in ('type tunnel.txt ^| findstr "Forwarding"') do (
-              set TUNNEL_URL=%%a
-            )
-            echo Public Tunnel URL: !TUNNEL_URL!
-            echo Server successfully configured!
-            echo.
-            echo IP: %COMPUTERNAME%
-            echo Username: administrator
-            echo Password: ${{ secrets.ADMIN_PASSWORD }}
-            echo.
-            echo Please log in to your RDP using the tunnel URL: !TUNNEL_URL!
-      - name: Cleanup
-        run: docker stop $(docker ps -aq) && docker rm $(docker ps -aq)
+          name: ngrok
+          path: ngrok
