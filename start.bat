@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 :: --- Variables --- 
 set SERVER_NAME="Windows Server 2016 by @Davitt"
-set ADMIN_PASSWORD="YOUR_STRONG_PASSWORD"
+set ADMIN_PASSWORD="admin123"
 set WALLPAPER_PATH="C:\Users\Public\Desktop\wallpaper.jpg" 
 set NGROK_CONFIG_PATH="C:\Program Files\ngrok\ngrok.exe"
 set NGROK_AUTH_TOKEN="2nRdX2lz14AAkLcOHd0lKCXFHR2_4CQr3QjdCrUYqR4sWh8VY"
