@@ -1,19 +1,25 @@
-name: SSH Tunnel and RDP Access
+name: SSH Access to Workflow Machine
 
 on: [push, workflow_dispatch]
 
 jobs:
-  rdp-access:
-    runs-on: ubuntu-latest
+  ssh-access:
+    runs-on: ubuntu-latest 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      - name: Setup SSH Tunnel
+
+      - name: Get Machine IP Address
         run: |
-          ssh -N -f -R 3389:target_machine_ip:3389 user@target_machine_ip
-      - name: Print RDP Access Instructions
-        run: echo "Connect to the target machine using your RDP client at localhost:3389"
-      - name: Wait for Connection (optional)
-        run: timeout 10
-      - name: Continue Workflow (if necessary)
-        run: echo "Workflow continues after RDP connection established"
+          # Get the public IP address of the workflow runner
+          ip=$(curl -s https://ident.me)
+          echo "::set-output name=ip::$ip"
+
+      - name: Install OpenSSH Server
+        run: sudo apt-get update && sudo apt-get install openssh-server -y
+
+      - name: Configure SSH Server
+        run: |
+          # Configure SSH server (change 'your_username' to your desired username)
+          sudo sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config 
+          sudo systemctl restart ssh
