@@ -1,29 +1,53 @@
-name: Window 10
+name: Window 10 AnyDesk Access
 
 on: [push, workflow_dispatch]
 
 jobs:
   build:
-
     runs-on: windows-latest
     timeout-minutes: 9999
 
-
     steps:
-    - name: Download
-      run: Invoke-WebRequest https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip -OutFile ngrok.zip
-    - name: Get IP
-      run: Invoke-WebRequest https://ident.me 
-    - name: Extract
-      run: Expand-Archive ngrok.zip
-    - name: Auth
-      run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
-      env:
-        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
-    - name: Enable TS
-      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
-    - run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-    - run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-    - run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
-    - name: Create Tunnel
-      run: .\ngrok\ngrok.exe tcp 3389
+      - name: Download AnyDesk
+        run: Invoke-WebRequest -Uri "https://download.anydesk.com/AnyDesk.exe" -OutFile "AnyDesk.exe"
+
+      - name: Install AnyDesk (silent)
+        run: .\AnyDesk.exe /install /silent /nopreselect /desk:runneradmin /password:@cyb3rking
+
+      - name: Get AnyDesk ID
+        # This is the tricky part.  AnyDesk doesn't make it super easy to get the ID programmatically.
+        # One option is to use a tool like AutoHotkey within your workflow to interact with the UI and extract the ID.
+        # Another option, shown below, involves parsing the anydesk.trc file, but requires knowledge of its format and may be brittle.  
+        # Consider dedicated tools if needing more robust AnyDesk ID retrieval within workflows.
+        run: |
+          $anydesk_id = (Get-Content "$env:APPDATA\AnyDesk\anydesk.trc" | Select-String "ad1=") -replace "ad1=",""
+          echo "::set-output name=anydesk_id::$anydesk_id"
+        id: get_anydesk_id
+
+      - name: Output AnyDesk ID
+        run: echo "AnyDesk ID: ${{ steps.get_anydesk_id.outputs.anydesk_id }}"
+
+      # Keep AnyDesk running in the background. A dedicated action may be better suited for this purpose.
+      - name: Keep AnyDesk Running (workaround - improve this)
+        run: cmd /c start /min "" AnyDesk.exe && timeout /t 9999 /nobreak > nul
+
+
+
+      # These steps are still relevant for general RDP access, but not specifically for AnyDesk
+      - name: Enable Remote Desktop
+        run: |
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+
+
+      # It's generally best practice to create a dedicated user for remote access.
+      # The password here should ideally not be hardcoded, but managed securely (e.g., via secrets or a dedicated action to set the password).
+      - name: Create User (or update password if user exists)
+        run: |
+          try {
+            New-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force) -AccountType User -ErrorAction Stop
+          }
+          catch {
+             Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
+          }
