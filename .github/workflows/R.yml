@@ -1,68 +1,19 @@
-name: AnyDesk Access (Improved)
+name: SSH Tunnel and RDP Access
 
 on: [push, workflow_dispatch]
 
 jobs:
-  anydesk-access:
-    runs-on: windows-latest
-    timeout-minutes: 10
-
+  rdp-access:
+    runs-on: ubuntu-latest
     steps:
-      - name: Install Chocolatey
-        uses: crazy-max/ghaction-chocolatey@v1
-
-      - name: Install AnyDesk via Chocolatey (Recommended)
-        run: choco install anydesk -y --params "/desk:runneradmin /password:${{ secrets.ANYDESK_PASSWORD }}"
-        env:
-          ANYDESK_PASSWORD: ${{ secrets.ANYDESK_PASSWORD }} # Use GitHub Secrets!
-
-      - name: Get AnyDesk ID (Powershell - less reliable, requires UI interaction)
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup SSH Tunnel
         run: |
-          # This *requires* AnyDesk to be running and the main window visible
-          Add-Type -AssemblyName system.windows.forms
-          [System.Windows.Forms.SendKeys]::SendWait("%(n)") # Alt+n to activate the menu
-          Start-Sleep -Seconds 1
-          [System.Windows.Forms.SendKeys]::SendWait("i") # 'i' for 'About AnyDesk'
-          Start-Sleep -Seconds 2  # Adjust delay as needed
-          $anydesk_window = Get-Process | Where-Object {$_.MainWindowTitle -like "*AnyDesk About*"}
-
-          if ($anydesk_window) {
-            $id_string = $anydesk_window.MainWindowTitle -split " "-notmatch ""  # Get individual words of the title
-            $anydesk_id = $id_string | Where-Object {$_ -match "^[0-9]+$"}
-            echo "::set-output name=anydesk_id::$anydesk_id"
-            echo "AnyDesk ID: $anydesk_id"
-          } else {
-            echo "::error Error: Could not find AnyDesk about window."
-            exit 1 # Fail the workflow
-          }
-      id: get_anydesk_id
-       
-      - name: Output AnyDesk ID
-        run: echo "AnyDesk ID: ${{ steps.get_anydesk_id.outputs.anydesk_id }}"      
-
-
-      - name: Keep AnyDesk Running (Background Task)
-        run: Start-Process -FilePath "C:\Program Files (x86)\AnyDesk\AnyDesk.exe" -ArgumentList "/nopreselect" -WindowStyle Minimized
-
-      # RDP Enablement (Optional - remove if not needed)
-      - name: Enable Remote Desktop
-        run: |
-          # ... (RDP enablement steps as before)
-
-      - name: Show AnyDesk ID
-        run: echo "AnyDesk ID: ${{ steps.get_anydesk_id.outputs.anydesk_id }}"
-        
-      - name: Access AnyDesk
-        run: |
-          echo "Connect to the AnyDesk instance using the ID: ${{ steps.get_anydesk_id.outputs.anydesk_id }}"
-          echo "You can use any AnyDesk client, including the web client at https://anydesk.com/en/remote-desktop/web-client"
-          echo "After connecting, use the password configured in the workflow."
-          echo "Please ensure the virtual machine or physical device is running."
-          
-          # This step will pause the workflow, allowing time for the user to connect to AnyDesk.
-          # You can customize the timeout by changing the value of '10' in the command.
-          timeout /t 10
-          
-          echo "Workflow resuming..."
-          
-          # You can add further steps after the AnyDesk connection has been established.
+          ssh -N -f -R 3389:target_machine_ip:3389 user@target_machine_ip
+      - name: Print RDP Access Instructions
+        run: echo "Connect to the target machine using your RDP client at localhost:3389"
+      - name: Wait for Connection (optional)
+        run: timeout 10
+      - name: Continue Workflow (if necessary)
+        run: echo "Workflow continues after RDP connection established"
