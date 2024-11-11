@@ -4,22 +4,41 @@ on: [push, workflow_dispatch]
 
 jobs:
   ssh-access:
-    runs-on: ubuntu-latest 
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Get Machine IP Address
+      - name: Get Machine IP Address (using multiple methods)
         run: |
-          # Get the public IP address of the workflow runner
+          # Try to get the IP address using multiple methods
           ip=$(curl -s https://ident.me)
+          if [[ -z "$ip" ]]; then 
+            ip=$(curl -s https://api.ipify.org)
+          fi
+          if [[ -z "$ip" ]]; then
+            echo "::error::Failed to get IP address"
+            exit 1
+          fi
           echo "::set-output name=ip::$ip"
 
       - name: Install OpenSSH Server
         run: sudo apt-get update && sudo apt-get install openssh-server -y
 
-      - name: Configure SSH Server
+      - name: Create SSH User (Change 'your_username' to your desired username)
         run: |
-          # Configure SSH server (change 'your_username' to your desired username)
-          sudo sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config 
-          sudo systemctl restart ssh
+          sudo useradd -m -s /bin/bash your_username
+          sudo passwd your_username
+
+      - name: Configure SSH Server (Change 'your_password' to your desired password)
+        run: |
+          # Configure SSH server 
+          sudo sed -i 's/#Port 22/Port 2222/' /etc/ssh/sshd_config
+          sudo sed -i '/PasswordAuthentication/s/#.*$/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo usermod -a -G sudo your_username # Add user to sudo group
+          sudo systemctl restart ssh 
+
+      - name: Output SSH Access Instructions
+        run: |
+          echo "You can now connect to the workflow machine using SSH:"
+          echo "IP Address: ${{
