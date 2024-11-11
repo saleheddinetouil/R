@@ -1,53 +1,68 @@
-name: Window 10 AnyDesk Access
+name: AnyDesk Access (Improved)
 
 on: [push, workflow_dispatch]
 
 jobs:
-  build:
+  anydesk-access:
     runs-on: windows-latest
-    timeout-minutes: 9999
+    timeout-minutes: 10
 
     steps:
-      - name: Download AnyDesk
-        run: Invoke-WebRequest -Uri "https://download.anydesk.com/AnyDesk.exe" -OutFile "AnyDesk.exe"
+      - name: Install Chocolatey
+        uses: crazy-max/ghaction-chocolatey@v1
 
-      - name: Install AnyDesk (silent)
-        run: .\AnyDesk.exe /install /silent /nopreselect /desk:runneradmin /password:@cyb3rking
+      - name: Install AnyDesk via Chocolatey (Recommended)
+        run: choco install anydesk -y --params "/desk:runneradmin /password:${{ secrets.ANYDESK_PASSWORD }}"
+        env:
+          ANYDESK_PASSWORD: ${{ secrets.ANYDESK_PASSWORD }} # Use GitHub Secrets!
 
-      - name: Get AnyDesk ID
-        # This is the tricky part.  AnyDesk doesn't make it super easy to get the ID programmatically.
-        # One option is to use a tool like AutoHotkey within your workflow to interact with the UI and extract the ID.
-        # Another option, shown below, involves parsing the anydesk.trc file, but requires knowledge of its format and may be brittle.  
-        # Consider dedicated tools if needing more robust AnyDesk ID retrieval within workflows.
+      - name: Get AnyDesk ID (Powershell - less reliable, requires UI interaction)
         run: |
-          $anydesk_id = (Get-Content "$env:APPDATA\AnyDesk\anydesk.trc" | Select-String "ad1=") -replace "ad1=",""
-          echo "::set-output name=anydesk_id::$anydesk_id"
-        id: get_anydesk_id
+          # This *requires* AnyDesk to be running and the main window visible
+          Add-Type -AssemblyName system.windows.forms
+          [System.Windows.Forms.SendKeys]::SendWait("%(n)") # Alt+n to activate the menu
+          Start-Sleep -Seconds 1
+          [System.Windows.Forms.SendKeys]::SendWait("i") # 'i' for 'About AnyDesk'
+          Start-Sleep -Seconds 2  # Adjust delay as needed
+          $anydesk_window = Get-Process | Where-Object {$_.MainWindowTitle -like "*AnyDesk About*"}
 
+          if ($anydesk_window) {
+            $id_string = $anydesk_window.MainWindowTitle -split " "-notmatch ""  # Get individual words of the title
+            $anydesk_id = $id_string | Where-Object {$_ -match "^[0-9]+$"}
+            echo "::set-output name=anydesk_id::$anydesk_id"
+            echo "AnyDesk ID: $anydesk_id"
+          } else {
+            echo "::error Error: Could not find AnyDesk about window."
+            exit 1 # Fail the workflow
+          }
+      id: get_anydesk_id
+       
       - name: Output AnyDesk ID
-        run: echo "AnyDesk ID: ${{ steps.get_anydesk_id.outputs.anydesk_id }}"
-
-      # Keep AnyDesk running in the background. A dedicated action may be better suited for this purpose.
-      - name: Keep AnyDesk Running (workaround - improve this)
-        run: cmd /c start /min "" AnyDesk.exe && timeout /t 9999 /nobreak > nul
+        run: echo "AnyDesk ID: ${{ steps.get_anydesk_id.outputs.anydesk_id }}"      
 
 
+      - name: Keep AnyDesk Running (Background Task)
+        run: Start-Process -FilePath "C:\Program Files (x86)\AnyDesk\AnyDesk.exe" -ArgumentList "/nopreselect" -WindowStyle Minimized
 
-      # These steps are still relevant for general RDP access, but not specifically for AnyDesk
+      # RDP Enablement (Optional - remove if not needed)
       - name: Enable Remote Desktop
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
-          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+          # ... (RDP enablement steps as before)
 
-
-      # It's generally best practice to create a dedicated user for remote access.
-      # The password here should ideally not be hardcoded, but managed securely (e.g., via secrets or a dedicated action to set the password).
-      - name: Create User (or update password if user exists)
+      - name: Show AnyDesk ID
+        run: echo "AnyDesk ID: ${{ steps.get_anydesk_id.outputs.anydesk_id }}"
+        
+      - name: Access AnyDesk
         run: |
-          try {
-            New-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force) -AccountType User -ErrorAction Stop
-          }
-          catch {
-             Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "@cyb3rking" -Force)
-          }
+          echo "Connect to the AnyDesk instance using the ID: ${{ steps.get_anydesk_id.outputs.anydesk_id }}"
+          echo "You can use any AnyDesk client, including the web client at https://anydesk.com/en/remote-desktop/web-client"
+          echo "After connecting, use the password configured in the workflow."
+          echo "Please ensure the virtual machine or physical device is running."
+          
+          # This step will pause the workflow, allowing time for the user to connect to AnyDesk.
+          # You can customize the timeout by changing the value of '10' in the command.
+          timeout /t 10
+          
+          echo "Workflow resuming..."
+          
+          # You can add further steps after the AnyDesk connection has been established.
