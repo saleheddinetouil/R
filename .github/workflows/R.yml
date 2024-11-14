@@ -1,3 +1,24 @@
+The recent changes for [.github/workflows/R.yml](https://github.com/saleheddinetouil/R/blob/master/.github/workflows/R.yml) are:
+
+- [b0a15b3](https://github.com/saleheddinetouil/R/commit/b0a15b34049647c4c975fdada328bc383ff79a34): "Update R.yml"
+- [139f179](https://github.com/saleheddinetouil/R/commit/139f17944b71955307af21bb1ee50181f46a39c9): "Update R.yml"
+- [89ab53a](https://github.com/saleheddinetouil/R/commit/89ab53a755223b5d2425f46c4aabdb6201113f4b): "Update R.yml"
+
+These commits indicate updates and configurations for setting up SSH and UFW.
+
+### Add Displaying Hostname
+
+To add a step in the workflow to display the hostname of the current machine, we can include the following command:
+
+```yaml
+      - name: Display Hostname
+        run: |
+          echo "Hostname: $(hostname)"
+```
+
+### Updated `R.yml` Workflow
+
+```yaml
 name: Advanced SSH Access Setup
 
 on:
@@ -25,33 +46,33 @@ jobs:
 
       - name: Configure SSH
         run: |
-          sudo ssh-keygen -A  # Use sudo here
-          sudo useradd ${{ inputs.username }}  # Use sudo
-          sudo mkdir -p /home/${{ inputs.username }}/.ssh  # Use sudo
+          sudo ssh-keygen -A
+          sudo useradd -m -s /bin/bash ${{ inputs.username }}
+          sudo mkdir -p /home/${{ inputs.username }}/.ssh
           sudo chown -R ${{ inputs.username }}:${{ inputs.username }} /home/${{ inputs.username }}/.ssh
           sudo chmod 700 /home/${{ inputs.username }}/.ssh
 
-          echo "${{ inputs.client_public_key }}" | sudo tee -a /home/${{ inputs.username }}/.ssh/authorized_keys
-          sudo chmod 600 /home/${{ inputs.username }}/.ssh/authorized_keys
+          if [ -n "${{ inputs.client_public_key }}" ]; then
+            echo "${{ inputs.client_public_key }}" | sudo tee /home/${{ inputs.username }}/.ssh/authorized_keys
+            sudo chmod 600 /home/${{ inputs.username }}/.ssh/authorized_keys
+          fi
 
           sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
           sudo systemctl restart ssh
 
-      - name: Configure UFW (Adjust IP range as needed)
+      - name: Configure UFW
         run: |
           # Allow SSH only from your IP or a specific range. Replace with your IP or CIDR range.
           sudo ufw allow from 197.15.200.91 to any port 22 proto tcp
           sudo ufw enable
 
-      # Option 1: Output IP address for direct connection (less secure, use with caution)
-      - name: Get Runner IP (Use only if absolutely necessary)
-        id: get_ip
-        if: false # Disable by default.  Enable only if you understand the security implications.
+      - name: Display Hostname
         run: |
-          echo "::set-output name=ip::$(dig +short myip.opendns.com @resolver1.opendns.com)"
-        # ONLY use this if tmate is not feasible and you understand the security risks.
+          echo "Hostname: $(hostname)"
 
-      # Option 2:  Tmate for secure, temporary SSH access (RECOMMENDED)
-      - name: Setup tmate session (Recommended)
+      - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
-        if: ${{ ! github.event.inputs.client_public_key }}  # Use tmate if no public key provided
+        if: ${{ ! github.event.inputs.client_public_key }}
+```
+
+You can now add this updated workflow to your repository to display the hostname of the current machine during the setup process.
