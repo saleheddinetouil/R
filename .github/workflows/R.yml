@@ -52,6 +52,3 @@ jobs:
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
         if: ${{ ! github.event.inputs.client_public_key }}
-```
-
-You can now add this updated workflow to your repository to display the hostname of the current machine during the setup process.
