@@ -42,7 +42,7 @@ jobs:
       - name: Configure UFW
         run: |
           # Allow SSH only from your IP or a specific range. Replace with your IP or CIDR range.
-          sudo ufw allow from 197.15.200.91 to any port 22 proto tcp
+          sudo ufw allow from 197.27.64.177 to any port 22 proto tcp
           sudo ufw enable
 
       - name: Display Hostname
