@@ -1,86 +1,64 @@
-name: Open SSH Access
+name: Advanced SSH Access Setup
 
 on:
   workflow_dispatch:
+    inputs:
+      username:
+        description: 'Username for SSH access'
+        required: true
+        default: 'root'
+      client_public_key:
+        description: 'Your public SSH key'
+        required: false
 
 jobs:
-  open-ssh:
+  ssh-setup:
     runs-on: ubuntu-latest
     steps:
-      - name: Get workspace hostname
-        id: get-hostname
-        run: |
-          # Replace with your command to fetch the hostname
-          name: Open SSH Access
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-on:
-  workflow_dispatch:
-
-jobs:
-  open-ssh:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Get workspace hostname
-        id: get-hostname
+      - name: Setup SSH Server
         run: |
-          # Replace with your command to fetch the hostname
-          hostname=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/hostname)
-          echo "::set-output name=hostname::$hostname"
+          sudo apt-get update
+          sudo apt-get install -y openssh-server
 
-      - name: Start SSH Service
+      - name: Configure SSH
         run: |
-          sudo systemctl enable ssh
-          sudo systemctl start ssh 
-          # (Optional: Set specific SSH port if needed)
-          # sudo ufw allow from your-ip-address to any port 22
-          # (Replace your-ip-address with your actual IP address)
-          echo "SSH service started on ${{ steps.get-hostname.outputs.hostname }}"
+          # Generate host keys
+          ssh-keygen -A
 
-      - name: Allow Incoming SSH
-        run: |
-          # Replace with your firewall management commands for allowing SSH
-          # Example for UFW (Uncomplicated Firewall):
-          sudo ufw allow ssh
-          echo "SSH connections allowed through the firewall"
+          # Create user
+          sudo useradd ${{ inputs.username }}
+          mkdir -p /home/${{ inputs.username }}/.ssh
+          sudo chown -R ${{ inputs.username }}:${{ inputs.username }} /home/${{ inputs.username }}/.ssh
+          chmod 700 /home/${{ inputs.username }}/.ssh
 
-      - name: Configure SSH Security (optional)
-        run: |
-          # Run commands to configure SSH security
-          # Examples:
-          # -  Disable password authentication
-          # -  Set a strong SSH server key
-          # -  Restrict access to specific IP addresses (if needed)
-          echo "SSH security configuration complete"
 
-      - name: Display Connection Information
-        run: |
-          echo "Connect to your workspace with: ssh root@${{ steps.get-hostname.outputs.hostname }}"
+          # Add client public key
+          echo "${{ inputs.client_public_key }}" | sudo tee -a /home/${{ inputs.username }}/.ssh/authorized_keys
+          sudo chmod 600 /home/${{ inputs.username }}/.ssh/authorized_keys
 
-      - name: Start SSH Service
-        run: |
-          sudo systemctl enable ssh
-          sudo systemctl start ssh 
-          # (Optional: Set specific SSH port if needed)
-          # sudo ufw allow from your-ip-address to any port 22
-          # (Replace your-ip-address with your actual IP address)
-          echo "SSH service started on ${{ steps.get-hostname.outputs.hostname }}"
+          # Disable password authentication (essential for security)
+          sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+          sudo systemctl restart ssh
 
-      - name: Allow Incoming SSH
-        run: |
-          # Replace with your firewall management commands for allowing SSH
-          # Example for UFW (Uncomplicated Firewall):
-          sudo ufw allow ssh
-          echo "SSH connections allowed through the firewall"
 
-      - name: Configure SSH Security (optional)
+      - name: Configure UFW (Adjust IP range as needed)
         run: |
-          # Run commands to configure SSH security
-          # Examples:
-          # -  Disable password authentication
-          # -  Set a strong SSH server key
-          # -  Restrict access to specific IP addresses (if needed)
-          echo "SSH security configuration complete"
+          # Allow SSH only from your IP or a specific range. Replace with your IP or CIDR range.
+          sudo ufw allow from salehtl.duckdns.org to any port 22 proto tcp
+          sudo ufw enable
 
-      - name: Display Connection Information
+      # Option 1: Output IP address for direct connection (less secure, use with caution)
+      - name: Get Runner IP (Use only if absolutely necessary)
+        id: get_ip
+        if: false # Disable by default.  Enable only if you understand the security implications.
         run: |
-          echo "Connect to your workspace with: ssh root@${{ steps.get-hostname.outputs.hostname }}"
+          echo "::set-output name=ip::$(dig +short myip.opendns.com @resolver1.opendns.com)"
+        # ONLY use this if tmate is not feasible and you understand the security risks.
+
+      # Option 2:  Tmate for secure, temporary SSH access (RECOMMENDED)
+      - name: Setup tmate session (Recommended)
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ ! github.event.inputs.client_public_key }}  # Use tmate if no public key provided
