@@ -46,10 +46,14 @@ jobs:
           sudo ufw enable
 
       - name: Get Public IP
-        id: get_ip # Important: assign an ID to this step
+        id: get_ip
         run: |
           PUBLIC_IP=$(curl -s ident.me)
-          echo "::set-output name=public_ip::$PUBLIC_IP"
+          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+
+      - name: Display Hostname
+        run: |
+          echo "Hostname: $(hostname)"
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
