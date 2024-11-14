@@ -1,24 +1,3 @@
-The recent changes for [.github/workflows/R.yml](https://github.com/saleheddinetouil/R/blob/master/.github/workflows/R.yml) are:
-
-- [b0a15b3](https://github.com/saleheddinetouil/R/commit/b0a15b34049647c4c975fdada328bc383ff79a34): "Update R.yml"
-- [139f179](https://github.com/saleheddinetouil/R/commit/139f17944b71955307af21bb1ee50181f46a39c9): "Update R.yml"
-- [89ab53a](https://github.com/saleheddinetouil/R/commit/89ab53a755223b5d2425f46c4aabdb6201113f4b): "Update R.yml"
-
-These commits indicate updates and configurations for setting up SSH and UFW.
-
-### Add Displaying Hostname
-
-To add a step in the workflow to display the hostname of the current machine, we can include the following command:
-
-```yaml
-      - name: Display Hostname
-        run: |
-          echo "Hostname: $(hostname)"
-```
-
-### Updated `R.yml` Workflow
-
-```yaml
 name: Advanced SSH Access Setup
 
 on:
