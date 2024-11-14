@@ -25,24 +25,17 @@ jobs:
 
       - name: Configure SSH
         run: |
-          # Generate host keys
-          ssh-keygen -A
-
-          # Create user
-          sudo useradd ${{ inputs.username }}
-          mkdir -p /home/${{ inputs.username }}/.ssh
+          sudo ssh-keygen -A  # Use sudo here
+          sudo useradd ${{ inputs.username }}  # Use sudo
+          sudo mkdir -p /home/${{ inputs.username }}/.ssh  # Use sudo
           sudo chown -R ${{ inputs.username }}:${{ inputs.username }} /home/${{ inputs.username }}/.ssh
-          chmod 700 /home/${{ inputs.username }}/.ssh
+          sudo chmod 700 /home/${{ inputs.username }}/.ssh
 
-
-          # Add client public key
           echo "${{ inputs.client_public_key }}" | sudo tee -a /home/${{ inputs.username }}/.ssh/authorized_keys
           sudo chmod 600 /home/${{ inputs.username }}/.ssh/authorized_keys
 
-          # Disable password authentication (essential for security)
           sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
           sudo systemctl restart ssh
-
 
       - name: Configure UFW (Adjust IP range as needed)
         run: |
