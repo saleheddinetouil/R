@@ -11,8 +11,50 @@ jobs:
         id: get-hostname
         run: |
           # Replace with your command to fetch the hostname
+          name: Open SSH Access
+
+on:
+  workflow_dispatch:
+
+jobs:
+  open-ssh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get workspace hostname
+        id: get-hostname
+        run: |
+          # Replace with your command to fetch the hostname
           hostname=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/hostname)
           echo "::set-output name=hostname::$hostname"
+
+      - name: Start SSH Service
+        run: |
+          sudo systemctl enable ssh
+          sudo systemctl start ssh 
+          # (Optional: Set specific SSH port if needed)
+          # sudo ufw allow from your-ip-address to any port 22
+          # (Replace your-ip-address with your actual IP address)
+          echo "SSH service started on ${{ steps.get-hostname.outputs.hostname }}"
+
+      - name: Allow Incoming SSH
+        run: |
+          # Replace with your firewall management commands for allowing SSH
+          # Example for UFW (Uncomplicated Firewall):
+          sudo ufw allow ssh
+          echo "SSH connections allowed through the firewall"
+
+      - name: Configure SSH Security (optional)
+        run: |
+          # Run commands to configure SSH security
+          # Examples:
+          # -  Disable password authentication
+          # -  Set a strong SSH server key
+          # -  Restrict access to specific IP addresses (if needed)
+          echo "SSH security configuration complete"
+
+      - name: Display Connection Information
+        run: |
+          echo "Connect to your workspace with: ssh root@${{ steps.get-hostname.outputs.hostname }}"
 
       - name: Start SSH Service
         run: |
