@@ -6,7 +6,7 @@ on:
       username:
         description: 'Username for SSH access'
         required: true
-        default: 'salehtk'
+        default: 'salehtl'
       client_public_key:
         description: 'Your public SSH key'
         required: false
@@ -40,7 +40,7 @@ jobs:
       - name: Configure UFW (Adjust IP range as needed)
         run: |
           # Allow SSH only from your IP or a specific range. Replace with your IP or CIDR range.
-          sudo ufw allow from salehtl.duckdns.org to any port 22 proto tcp
+          sudo ufw allow from 197.15.200.91 to any port 22 proto tcp
           sudo ufw enable
 
       # Option 1: Output IP address for direct connection (less secure, use with caution)
