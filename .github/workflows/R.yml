@@ -6,7 +6,7 @@ on:
       username:
         description: 'Username for SSH access'
         required: true
-        default: 'root'
+        default: 'salehtk'
       client_public_key:
         description: 'Your public SSH key'
         required: false
