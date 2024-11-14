@@ -1,60 +1,76 @@
-name: Advanced SSH Access Setup
+name: Robust SSH Access for GitHub Actions Runner
 
 on:
   workflow_dispatch:
     inputs:
-      username:
-        description: 'Username for SSH access'
-        required: true
-        default: 'salehtl'
-      client_public_key:
-        description: 'Your public SSH key'
+      ssh_key:
+        description: 'Your private SSH key (required if not using tmate)'
         required: false
+        type: secret
+      use_tmate:
+        description: 'Use tmate for SSH access (true/false)'
+        required: true
+        default: 'true'  # Default to using tmate
+      allowed_ips:
+        description: 'Comma-separated list of allowed IP addresses/CIDR ranges (optional, if empty allows all)'
+        required: false
+        default: ''  # Allow all by default for tmate
+
 
 jobs:
   ssh-setup:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout code (if needed)
         uses: actions/checkout@v3
+        if: ${{ github.repository != 'actions/runner' }} # Avoid checking out if it's a self-hosted runner
 
-      - name: Setup SSH Server
+
+      - name: Setup SSH Server (if needed)
+        if: ${{ github.repository != 'actions/runner' }} # Skip for self-hosted runners
         run: |
-          sudo apt-get update
-          sudo apt-get install -y openssh-server
+          sudo apt-get update -y -qq
+          sudo apt-get install -y -qq openssh-server
+          sudo systemctl enable ssh
 
-      - name: Configure SSH
+
+      - name: Configure SSH (if needed)  # For self-hosted or new users
+        if: ${{ github.repository != 'actions/runner' || ! github.event.inputs.ssh_key }}
         run: |
-          sudo ssh-keygen -A
-          sudo useradd -m -s /bin/bash ${{ inputs.username }}
-          sudo mkdir -p /home/${{ inputs.username }}/.ssh
-          sudo chown -R ${{ inputs.username }}:${{ inputs.username }} /home/${{ inputs.username }}/.ssh
-          sudo chmod 700 /home/${{ inputs.username }}/.ssh
+          sudo useradd -m runner # create dedicated user 'runner'
+          sudo mkdir -p /home/runner/.ssh
+          sudo chown -R runner:runner /home/runner/.ssh
+          sudo chmod 700 /home/runner/.ssh
 
-          if [ -n "${{ inputs.client_public_key }}" ]; then
-            echo "${{ inputs.client_public_key }}" | sudo tee /home/${{ inputs.username }}/.ssh/authorized_keys
-            sudo chmod 600 /home/${{ inputs.username }}/.ssh/authorized_keys
+          if [ -n "${{ secrets.ssh_key }}" ]; then 
+            echo "${{ secrets.ssh_key }}" | sudo tee /home/runner/.ssh/authorized_keys > /dev/null
+            sudo chmod 600 /home/runner/.ssh/authorized_keys
           fi
 
           sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
           sudo systemctl restart ssh
 
-      - name: Configure UFW
+      - name: Configure UFW (if needed, and only if allowed IPs are provided)
+        if: ${{ github.repository != 'actions/runner' && github.event.inputs.allowed_ips != ''}}
         run: |
-          # Allow SSH only from your IP or a specific range. Replace with your IP or CIDR range.
-          sudo ufw allow from 197.27.64.177 to any port 22 proto tcp
+          for ip in $(echo "${{ github.event.inputs.allowed_ips }}" | sed "s/,/ /g"); do
+            sudo ufw allow from "$ip" to any port 22 proto tcp
+          done
           sudo ufw enable
-
-      - name: Get Public IP
+      
+      - name: Get Public IP (for tmate or direct SSH)
         id: get_ip
         run: |
           PUBLIC_IP=$(curl -s ident.me)
-          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+          echo "::set-output name=public_ip::$PUBLIC_IP"
 
-      - name: Display Hostname
-        run: |
-          echo "Hostname: $(hostname)"
 
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
-        if: ${{ ! github.event.inputs.client_public_key }}
+        if: ${{ github.event.inputs.use_tmate == 'true' }}
+
+
+      - name: Output SSH Connection info (for direct SSH)
+        if: ${{ github.event.inputs.use_tmate == 'false' }}
+        run: |
+           echo "Connect with: ssh runner@${{ steps.get_ip.outputs.public_ip }}"
